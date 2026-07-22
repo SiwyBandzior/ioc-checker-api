@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     abuseipdb_api_key: str
     abuseipdb_base_url: str = "https://api.abuseipdb.com/api/v2/check"
     abuseipdb_max_age_days: int = 90
-    risk_thereshold: int = 50
+    risk_threshold: int = 50
 
 
 @lru_cache

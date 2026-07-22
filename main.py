@@ -8,7 +8,7 @@ app = FastAPI(title="IoC Checker API")
 class IOCCheckRequest(BaseModel):
     ip_address: str
 
-class IOCCHeckResult(BaseModel):
+class IOCCheckResult(BaseModel):
     ip_address: str
     country_code: str | None
     risk_score: int
@@ -19,7 +19,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/ioc/check", response_model=IOCCheckRequest)
+@app.post("/ioc/check", response_model=IOCCheckResult)
 async def check_ip(payload: IOCCheckRequest):
     settings = get_settings()
 
@@ -29,9 +29,9 @@ async def check_ip(payload: IOCCheckRequest):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     
     risk_score = report["abuseConfidenceScore"]
-    status = "DANGEROUS" if risk_score > settings.risk_thereshold else "SAFE"
+    status = "DANGEROUS" if risk_score > settings.risk_threshold else "SAFE"
 
-    return IOCCHeckResult(
+    return IOCCheckResult(
         ip_address=payload.ip_address,
         country_code=report.get("countryCode"),
         risk_score=risk_score,
