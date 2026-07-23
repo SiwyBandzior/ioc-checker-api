@@ -1,3 +1,5 @@
+![Tests](https://github.com/SiwyBandzior/ioc-checker-api/actions/workflows/tests.yml/badge.svg)
+
 # IoC Checker API
 
 REST API for checking threat-intelligence indicators of compromise (IoCs), starting with IP reputation lookups via [AbuseIPDB](https://www.abuseipdb.com/). Built with Python and FastAPI.
