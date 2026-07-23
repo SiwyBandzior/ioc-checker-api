@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from abuseipdb import AbuseIPDBError, fetch_ip_report
 from config import get_settings
+from ioc_service import determine_status
 
 app = FastAPI(title="IoC Checker API")
 
@@ -29,7 +30,7 @@ async def check_ip(payload: IOCCheckRequest):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     
     risk_score = report["abuseConfidenceScore"]
-    status = "DANGEROUS" if risk_score > settings.risk_threshold else "SAFE"
+    status = determine_status(risk_score, settings.risk_threshold)
 
     return IOCCheckResult(
         ip_address=payload.ip_address,
