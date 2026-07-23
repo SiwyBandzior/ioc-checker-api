@@ -2,7 +2,7 @@ import httpx
 from config import get_settings
 
 class AbuseIPDBError(Exception):
-    print("DB error")
+    """Wlasny wyjatek: cos poszlo nie tak w rozmowie z AbuseIPDB."""
 
 async def fetch_ip_report(ip_address: str) -> dict:
     settings = get_settings()

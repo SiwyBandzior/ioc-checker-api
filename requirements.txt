@@ -3,3 +3,5 @@ uvicorn[standard]
 httpx
 pydantic-settings
 pytest
+
+# TODO: migracja httpx -> httpx2 (Pydantic przejal utrzymanie projektu)
