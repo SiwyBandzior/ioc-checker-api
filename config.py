@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     abuseipdb_base_url: str = "https://api.abuseipdb.com/api/v2/check"
     abuseipdb_max_age_days: int = 90
     risk_threshold: int = 50
+    database_url: str = "sqlite+aiosqlite:///./ioc_checker.db"
 
 
 @lru_cache

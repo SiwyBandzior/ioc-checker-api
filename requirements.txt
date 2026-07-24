@@ -3,5 +3,7 @@ uvicorn[standard]
 httpx
 pydantic-settings
 pytest
+sqlalchemy[asyncio]
+aiosqlite
 
 # TODO: migracja httpx -> httpx2 (Pydantic przejal utrzymanie projektu)

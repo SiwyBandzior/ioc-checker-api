@@ -1,61 +1,117 @@
-![Tests](https://github.com/SiwyBandzior/ioc-checker-api/actions/workflows/tests.yml/badge.svg)
-
 # IoC Checker API
 
-REST API for checking threat-intelligence indicators of compromise (IoCs), starting with IP reputation lookups via [AbuseIPDB](https://www.abuseipdb.com/). Built with Python and FastAPI.
+![Tests](https://github.com/SiwyBandzior/ioc-checker-api/actions/workflows/tests.yml/badge.svg)
 
-> **Status: work in progress.** This is the backend of a larger IoC Checker web platform I am building step by step — see the [roadmap](#roadmap) below.
+REST API do sprawdzania reputacji adresów IP w bazie AbuseIPDB, z zapisem
+historii skanów i pełnym pakietem testów automatycznych.
 
-## Features
+Projekt powstał jako przebudowa mojego wcześniejszego skryptu
+[Threat-Intelligence-Automator](https://github.com/SiwyBandzior/Threat-Intelligence-Automator-IoC-Checker)
+z jednoplikowego narzędzia CLI do aplikacji o strukturze produkcyjnej.
 
-- IP reputation check against AbuseIPDB (abuse confidence score, total reports, country, ISP) **[SPRAWDŹ: dopasuj listę pól do tego, co faktycznie zwraca abuseipdb.py]**
-- API keys and settings loaded from environment variables (`.env`) — no secrets in code
-- Clean module split: `main.py` (API layer), `abuseipdb.py` (provider client), `config.py` (configuration)
+## Co się zmieniło względem pierwotnego skryptu
 
-## Tech stack
+| Skrypt pierwotny | Ten projekt |
+|---|---|
+| Klucz API wpisany w kodzie źródłowym | Zmienne środowiskowe (`.env`), plik poza repozytorium |
+| Jedna pętla proceduralna, brak funkcji | Podział na warstwy: klient HTTP / logika / API |
+| Brak obsługi nieoczekiwanych odpowiedzi | Własny wyjątek `AbuseIPDBError`, mapowany na HTTP 502 |
+| Wynik drukowany na konsolę | Zapis do bazy, historia dostępna przez `GET /ioc/history` |
+| Brak walidacji wejścia | Walidacja formatu IP przed wywołaniem zewnętrznego API |
+| Brak testów | 28 testów: jednostkowe + API, z mockowaniem |
+| Uruchamiane ręcznie | GitHub Actions przy każdym pushu |
 
-Python 3 · FastAPI · Uvicorn · python-dotenv **[SPRAWDŹ: wyrównaj z requirements.txt — dopisz np. requests/httpx, jeśli używasz]**
+## Stack
 
-## Getting started
+- **Python 3.12**, **FastAPI**, **Uvicorn**
+- **SQLAlchemy 2.0** (async) + **aiosqlite**
+- **httpx** — asynchroniczny klient HTTP
+- **pytest** + `monkeypatch` — testy jednostkowe i API
+- **GitHub Actions** — CI
+
+## Struktura
+
+```
+main.py           # endpointy HTTP, modele request/response
+config.py         # konfiguracja i sekrety ze zmiennych środowiskowych
+abuseipdb.py      # klient zewnętrznego API (izolowany, mockowalny)
+ioc_service.py    # logika biznesowa (czyste funkcje)
+database.py       # silnik bazy, sesje, zależność get_db
+models.py         # model ORM: tabela ioc_scans
+tests/            # testy jednostkowe i API
+```
+
+Klient HTTP jest celowo oddzielony od logiki biznesowej — dzięki temu
+logikę można testować bez sieci, a warstwę API bez zużywania limitu
+zapytań AbuseIPDB.
+
+## Uruchomienie
 
 ```bash
-git clone https://github.com/SiwyBandzior/ioc-checker-api.git
-cd ioc-checker-api
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env   # add your AbuseIPDB API key
+
+cp .env.example .env               # i wpisz swój klucz AbuseIPDB
+
 uvicorn main:app --reload
 ```
 
-Interactive API docs (Swagger UI): http://127.0.0.1:8000/docs
+Dokumentacja interaktywna: http://localhost:8000/docs
 
-## Example
+## Endpointy
 
-```
-GET /check/ip/8.8.8.8
+| Metoda | Ścieżka | Opis |
+|---|---|---|
+| `GET` | `/health` | Status aplikacji |
+| `POST` | `/ioc/check` | Sprawdza pojedyncze IP i zapisuje wynik |
+| `GET` | `/ioc/history?limit=50` | Historia skanów, od najnowszych |
+
+Przykład:
+
+```bash
+curl -X POST http://localhost:8000/ioc/check \
+  -H "Content-Type: application/json" \
+  -d '{"ip_address": "8.8.8.8"}'
 ```
 
 ```json
 {
-  "ip": "8.8.8.8",
-  "abuse_confidence_score": 0,
-  "total_reports": 0,
-  "country": "US"
+  "id": 1,
+  "ip_address": "8.8.8.8",
+  "country_code": "US",
+  "risk_score": 0,
+  "status": "SAFE",
+  "scanned_at": "2026-07-24T15:15:37.995435+00:00"
 }
 ```
 
-**[SPRAWDŹ: podmień na prawdziwy endpoint z main.py i realną odpowiedź — wystarczy skopiować z /docs]**
+## Testy
 
-## Roadmap
+```bash
+pytest -v
+```
 
-- [ ] React frontend (web UI)
-- [ ] Automated tests: pytest (API) and Playwright (end-to-end)
-- [ ] Additional intelligence sources (e.g. VirusTotal, URLhaus)
-- [ ] Docker setup
+Testy są rozdzielone na dwa poziomy:
 
-## Background
+- **Jednostkowe** (`test_ioc_service.py`) — czyste funkcje w izolacji:
+  klasyfikacja ryzyka i walidacja formatu IP. Bez sieci, bez bazy,
+  z testami wartości brzegowych (np. wynik dokładnie równy progowi).
+- **API** (`test_api.py`) — pełny stos FastAPI z zamockowanym AbuseIPDB.
+  Każdy test dostaje świeżą bazę testową przez fixture.
 
-This project grew out of my earlier CLI script (Threat-Intelligence-Automator-IoC-Checker) and is being rebuilt as a web service to practice API design, automated testing and full-stack development.
+Testowane są nie tylko ścieżki poprawne, ale też:
+awaria zewnętrznego API → 502, brak wymaganego pola → 422,
+nieudany skan nie trafia do bazy, a niepoprawne IP nie powoduje
+wywołania zewnętrznego API (test typu *spy* chroniący limit zapytań).
 
-## Author
+Testy nie odpytują prawdziwego AbuseIPDB — reputacja adresów zmienia się
+w czasie, więc testy zależne od żywych danych dawałyby fałszywe wyniki.
 
-Kazimierz Nowak — [LinkedIn](https://www.linkedin.com/in/kazimierz-nowak-sec) · [GitHub](https://github.com/SiwyBandzior)
+## Dalsze kroki
+
+- [ ] Migracja `httpx` → `httpx2`
+- [ ] Endpoint zbiorczy (`POST /ioc/check/bulk`)
+- [ ] Frontend w React: formularz i tabela historii
+- [ ] Testy E2E (Playwright)
+- [ ] Docker Compose
